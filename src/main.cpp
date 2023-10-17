@@ -1,159 +1,16 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
-#include <cmath>
+#include "../libs/Person.h"
+#include "../libs/Pos.h"
 #include "../libs/Grafo.h"
+#include "../libs/utils.h"
 #include <SFML/Graphics.hpp>
-
+#include <unordered_map>
+#include "../libs/GraphVisualizer.h"
 
 using namespace std;
-struct person{
-    float speed = 2.0f;
-    float x = 0;
-    float y = 0;
-    int current_node = 0;
-};
 
-// move person to a point (x, y)
-void move(person &p, float x, float y){
-    float dx = x - p.x;
-    float dy = y - p.y;
-    float distance = sqrt(dx * dx + dy * dy);
-    if(distance > 0){
-        float step = p.speed / distance;
-        p.x += dx * step;
-        p.y += dy * step;
-    }
-}
-
-//check if person is close enough to node (5.0f)
-bool closeEnough(person &p, float x, float y){
-    float dx = x - p.x;
-    float dy = y - p.y;
-    float distance = sqrt(dx * dx + dy * dy);
-    return distance < 5.0f;
-}
-
-// Structure to represent geographic coordinates
-struct pos {
-    double lat;
-    double lon;
-
-    pos() : lat(0), lon(0) {}
-
-    friend ostream &operator<<(ostream &os, const pos &p) {
-        os << "lat: " << p.lat << " lon: " << p.lon;
-        return os;
-    }
-
-    // read from stream
-    friend istream &operator>>(istream &is, pos &p) {
-        string line;
-        getline(is, line);
-        stringstream ss(line);
-        string token;
-        getline(ss, token, ',');
-        p.lat = stod(token);
-        getline(ss, token, ',');
-        p.lon = stod(token);
-        return is;
-    }
-
-    // read from string
-    friend void operator>>(const string &s, pos &p) {
-        stringstream ss(s);
-        string token;
-        getline(ss, token, ',');
-        p.lat = stod(token);
-        getline(ss, token, ',');
-        p.lon = stod(token);
-    }
-
-    friend bool operator<(const pos &p1, const pos &p2) {
-        return p1.lat < p2.lat && p1.lon < p2.lon;
-    }
-
-    friend bool operator>(const pos &p1, const pos &p2) {
-        return p1.lat > p2.lat && p1.lon > p2.lon;
-    }
-
-    friend bool operator==(const pos &p1, const pos &p2) {
-        return p1.lat == p2.lat && p1.lon == p2.lon;
-    }
-
-    friend bool operator!=(const pos &p1, const pos &p2) {
-        return !(p1 == p2);
-    }
-
-    friend bool operator<=(const pos &p1, const pos &p2) {
-        return p1 < p2 || p1 == p2;
-    }
-
-    friend bool operator>=(const pos &p1, const pos &p2) {
-        return p1 > p2 || p1 == p2;
-    }
-
-
-
-};
-
-constexpr double toRadians(double degrees) {
-    return degrees * M_PI / 180.0;
-}
-// Function to calculate the Haversine distance between two sets of coordinates
-double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
-    // Radius of the Earth in kilometers (mean value)
-    constexpr double earthRadiusKm = 6371.0;
-
-    // Convert latitude and longitude from degrees to radians
-    lat1 = toRadians(lat1);
-    lon1 = toRadians(lon1);
-    lat2 = toRadians(lat2);
-    lon2 = toRadians(lon2);
-
-    // Haversine formula
-    double dLat = lat2 - lat1;
-    double dLon = lon2 - lon1;
-
-    double a = std::sin(dLat / 2) * std::sin(dLat / 2) +
-               std::cos(lat1) * std::cos(lat2) *
-               std::sin(dLon / 2) * std::sin(dLon / 2);
-
-    double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
-
-    // Calculate the distance
-    double distance = earthRadiusKm * c;
-
-    return distance;
-}
-
-// takes a position and a list of positions, returns the closest position
-// positions are coordinates in the form of (lat, lon)
-// harversine distance
-pos closest(pos &p, vector<pos> &list) {
-    pos closest = list[0];
-    double minDistance = haversineDistance(p.lat, p.lon, closest.lat, closest.lon);
-    for (auto &pos : list) {
-        double distance = haversineDistance(p.lat, p.lon, pos.lat, pos.lon);
-        if (distance < minDistance) {
-            minDistance = distance;
-            closest = pos;
-        }
-    }
-    return closest;
-}
-
-
-// normalize the coordinates based on bounding box
-void normalize(pos &p, pos &min, pos &max) {
-    p.lat = (p.lat - min.lat) / (max.lat - min.lat);
-    p.lon = (p.lon - min.lon) / (max.lon - min.lon);
-}
-
-void denormalize(pos &p, pos &min, pos &max) {
-    p.lat = p.lat * (max.lat - min.lat) + min.lat;
-    p.lon = p.lon * (max.lon - min.lon) + min.lon;
-}
 
 // Function to render the graph using SFML
 template<class T>
@@ -198,7 +55,7 @@ void renderGraph(sf::RenderWindow& window, const sf::Font  &font, Grafo<T> myGra
         window.draw(label);
         // Draw connections (edges)
         for (int j = 0; j < nodo->getGrado(); j++) {
-            std::shared_ptr<NodoGrafo<T>> connectedNode = nodo->getConexion(j);
+            std::shared_ptr<NodoGrafo<T>> connectedNode = nodo->getConexion(j).lock();
 
             // Calculate positions of connected nodes based on nodePositions
             sf::Vector2f startPos = nodePositions[i];
@@ -218,13 +75,31 @@ void renderGraph(sf::RenderWindow& window, const sf::Font  &font, Grafo<T> myGra
     }
 }
 
+// normalize vector1 based on vector2's index of values (EX v1 {1, 2, 3} v2 {1, 3, 2} -> v1 {0, 2, 1})
+vector<int> normalizeVector(vector<int> &v1, vector<int> &v2){
+    vector<int> normalized;
+    unordered_map<int, int> map;
+    for(int i = 0; i < v2.size(); i++){
+        map[v2[i]] = i;
+    }
+    for(int & i : v1){
+        normalized.push_back(map[i]);
+    }
+    return normalized;
+}
+
+
+
 int main() {
-    Grafo<pos> grafo(1000, Type::Directed);
-    grafo.read_nodes_from_csv("../data/nodes1000.csv", true);
-    grafo.read_edges_from_csv("../data/edges1000.csv", true);
+    Grafo<pos> grafo(54000, Type::Directed);
+    grafo.read_nodes_from_csv("../data/nodes.csv", true);
+    grafo.read_edges_from_csv("../data/edges.csv", true);
 
     // Now we get the bounding box from the data
     auto data = grafo.getNodosData();
+
+    cout<<"data size: "<<data.size()<<endl;
+    cout<<"Getting bounding box..."<<endl;
     pos min = data[0];
     pos max = data[0];
     for (auto &pos : data) {
@@ -241,59 +116,58 @@ int main() {
             max.lon = pos.lon;
         }
     }
-
-    // normalize all coordinates
-//    pos newpos;
-//    for (auto &nodo : grafo.getNodos()) {
-//        newpos = nodo->getDato();
-//        normalize(newpos, min, max);
-//        nodo->setDato(newpos);
-//    }
-//
-//    // print bounding box
-//    cout << "min: " << min << endl;
-//    cout << "max: " << max << endl;
-//    // print separator
-//    cout << "-----------------" << endl;
-//    // print some normalized coordinates (3)
-//    for (int i = 0; i < 3; i++) {
-//        cout << grafo.getNodo(i)->getDato() << endl;
-//    }
+    cout<<"Bounding box: "<<endl;
+    cout<<"min: "<<min<<endl;
+    cout<<"max: "<<max<<endl;
 
     // print separator
     cout << "-----------------" << endl;
+
+    // wait for user keypress
+    system("pause");
 
     // Get closest node to a random position
     pos random_position;
     random_position.lat = -34.5899925;
     random_position.lon = -58.5604069;
-    cout<<"test: "<<random_position<<endl;
-    normalize(random_position, min, max);
-    cout << "test normalized: " << random_position << endl;
-    data = grafo.getNodosData();
+    cout<<"random: "<<random_position<<endl;
     pos closestpos = closest(random_position, data);
+    cout<<"closest: "<<closestpos<<endl;
     normalize(closestpos, min, max);
-    cout<< "closest: "<<closestpos<<endl;
+    cout<< "closest normalized: "<<closestpos<<endl;
     denormalize(closestpos, min, max);
     cout<<"closest denormalized: "<<closestpos<<endl;
 
     // print separator
     cout << "-----------------" << endl;
+    system("pause");
 
     // Get shortest path between two positions
     data = grafo.getNodosData();
     // sort data
 
     pos start;
-//    start.lat = -34.5899925;
-//    start.lon = -58.5604069;
+
     start.lat =  -34.509172;
     start.lon = -58.565068;
     pos end;
-//    end.lat = -34.571577;
-//    end.lon = -58.571440;
+
     end.lat =  -34.627619;
     end.lon = -58.463187;
+
+    // user input for start and end, format "lat,lon"
+//    cout << "Enter start position (lat,lon): ";
+//    cin >> start.lat;
+//    cin.ignore();
+//    cin >> start.lon;
+//    cin.ignore();
+//    cout << "Enter end position (lat,lon): ";
+//    cin >> end.lat;
+//    cin.ignore();
+//    cin >> end.lon;
+//    cin.ignore();
+
+
     // Before normalizing
     cout << "start: " << start << endl;
     cout << "end: " << end << endl;
@@ -303,9 +177,8 @@ int main() {
     cout << "end closest: " << end << endl;
     cout<< "Calculating shortest path..."<<endl;
     vector<int> path = grafo.bfsShortestPath(grafo.getNodo(start)->getId(), grafo.getNodo(end)->getId());
-    auto visited = path;
     //vector<int> visited = grafo.bfs(grafo.getNodo(start)->getId(), grafo.getNodo(end)->getId());
-    //vector<int> path = {45236, 11995, 20731, 14155, 47838};
+    vector<int> visited = path;
     cout << "path: ";
     for (auto &id : path) {
         cout << id << " ";
@@ -314,10 +187,12 @@ int main() {
 
     // print separator
     cout << "-----------------" << endl;
+    system("pause");
+
 
     // visualize path with SFML
     sf::RenderWindow window(sf::VideoMode(1000, 1000), "Graph Visualization");
-    window.setFramerateLimit(60);
+    window.setFramerateLimit(320);
 
     // Load font
     sf::Font font;
@@ -368,22 +243,30 @@ int main() {
         pos p = grafo.getNodo(i)->getDato();
         pathGraph.agregarNodo(p);
     }
+    // copy visited into new vector
+    vector<int> normalization = visited;
+
+    auto normalized_visited = normalizeVector(visited, normalization);
+    auto normalized_path = normalizeVector(path, normalization);
 
 
     // Set node colors and sizes
-    for (int i = 0; i < visited.size(); i++) {
-        // set label to denormalized path value
-        pos p = grafo.getNodo(visited[i])->getDato();
+    for (int i = 0; i < normalized_visited.size(); i++) {
         pathGraph.getNodo(i)->setColor(255, 0, 0);
 
         // set size
         pathGraph.getNodo(i)->setSize(5.0f);
     }
-    // Set node colors and sizes for path nodes
+    // set node labels for path nodes
     for (int i = 0; i < path.size(); i++) {
+        pos p = grafo.getNodo(i)->getDato();
+        pathGraph.getNodo(normalized_path[i])->setLabel(to_string(p.lat) + "," + to_string(p.lon));
+    }
 
-        pos p = grafo.getNodo(path[i])->getDato();
-        pathGraph.getNodo(i)->setLabel(to_string(p.lat) + "," + to_string(p.lon));
+
+    // Set node colors and sizes for path nodes
+    for (int i : normalized_path) {
+
         // set size
         pathGraph.getNodo(i)->setSize(20.0f);
         // set color based on position
@@ -402,13 +285,11 @@ int main() {
     }
 
     // create person
-    person p;
-    p.x = nodePositions[0].x;
-    p.y = nodePositions[0].y;
+    Person p(nodePositions[0].x, nodePositions[0].y);
     // create circle
     sf::CircleShape person(10.0f);
     person.setFillColor(sf::Color::Black);
-    person.setPosition(p.x, p.y);
+    person.setPosition(p.getX(), p.getY());
 
 
     // Render graph
@@ -423,11 +304,11 @@ int main() {
         renderGraph(window, font, pathGraph, nodePositions);
 
         // move person
-        if(p.current_node < visited.size()){
-            move(p, nodePositions[p.current_node].x, nodePositions[p.current_node].y);
-            person.setPosition(p.x, p.y);
-            if(closeEnough(p, nodePositions[p.current_node].x, nodePositions[p.current_node].y)){
-                p.current_node++;
+        if(p.getCurrentNode() < visited.size()){
+            p.movePersonTo(nodePositions[p.getCurrentNode()].x, nodePositions[p.getCurrentNode()].y);
+            person.setPosition(p.getX(), p.getY());
+            if(p.closeEnough(nodePositions[p.getCurrentNode()].x, nodePositions[p.getCurrentNode()].y)){
+                p.advanceNode();
             }
         }
 

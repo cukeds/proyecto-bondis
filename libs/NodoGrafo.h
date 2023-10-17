@@ -13,7 +13,7 @@ struct Color{
 template<class T>
 class NodoGrafo {
 private:
-    std::vector<std::shared_ptr<NodoGrafo<T>>> conexiones;
+    std::vector<std::weak_ptr<NodoGrafo<T>>> conexiones;
     int grado;
     T dato;
     int id;
@@ -70,7 +70,9 @@ public:
     }
 
     void addConexion(std::shared_ptr<NodoGrafo<T>> nodo) {
-        conexiones.push_back(nodo);
+        //debug sharedptr and weakptr
+
+        conexiones.emplace_back(nodo);
         grado++;
     }
 
@@ -78,11 +80,12 @@ public:
         return id;
     }
 
-    std::shared_ptr<NodoGrafo<T>> getConexion(int n) const {
+    std::weak_ptr<NodoGrafo<T>> getConexion(int n) const {
         if (n >= 0 && n < grado) {
             return conexiones[n];
         }
-        return nullptr;
+        // return weak null
+        return std::weak_ptr<NodoGrafo<T>>();
     }
 
     bool isConnected(int _id) const {

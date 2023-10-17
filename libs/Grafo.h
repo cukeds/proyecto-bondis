@@ -37,16 +37,14 @@ private:
     void agregarAristaDirected(int id1, int id2) {
         if (id1 >= 0 && id1 < n && id2 >= 0 && id2 < n) {
             nodos[id1]->addConexion(nodos[id2]);
-
             adjacencyMatrix[id1][id2] = true;
-            adjacencyMatrix[id2][id1] = true;
         } else {
             std::cerr<<"Node not in graph"<<std::endl;
         }
     }
 
 public:
-    Grafo() : adjacencyMatrix(1000, std::vector<bool>(1000, false)), nodos(1000) {
+    Grafo() : adjacencyMatrix(1000, std::vector<bool>(0, false)), nodos(1000){
         type = Type::Undirected;
     }
 
@@ -54,7 +52,7 @@ public:
         type = Type::Undirected;
     }
 
-    Grafo(Type type) : adjacencyMatrix(1000, std::vector<bool>(1000, false)), nodos(1000) {
+    Grafo(Type type) : adjacencyMatrix(1000, std::vector<bool>(1000, false)), nodos(1000){
 
         this->type = type;
     }
@@ -183,7 +181,7 @@ public:
     }
 
 
-    // bfs from node 1 to node 2 that returns all visited nodes
+    // bfs from node 1 to node 2 that returns all visited nodes in the order they were visited
     std::vector<int> bfs(int id1, int id2){
         std::queue<int> frontier;
 
@@ -204,13 +202,14 @@ public:
             frontier.pop();
 
             if (currentNode == id2) {
+                visited.push_back(currentNode);
                 return visited;
             }
 
             for (int neighbor = 0; neighbor < n; neighbor++) {
                 if (adjacencyMatrix[currentNode][neighbor] && distance[neighbor] == -1) {
-                    distance[neighbor] = distance[currentNode] + 1;
                     visited.push_back(neighbor);
+                    distance[neighbor] = distance[currentNode] + 1;
                     frontier.push(neighbor);
                 }
             }
