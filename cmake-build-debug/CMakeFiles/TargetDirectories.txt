@@ -1,0 +1,3 @@
+C:/Users/Juan/Downloads/Cookie and Morts shit/University/proyecto bondi/cmake-build-debug/CMakeFiles/proyecto_bondi.dir
+C:/Users/Juan/Downloads/Cookie and Morts shit/University/proyecto bondi/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/Juan/Downloads/Cookie and Morts shit/University/proyecto bondi/cmake-build-debug/CMakeFiles/rebuild_cache.dir
